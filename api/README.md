@@ -1,19 +1,30 @@
 # API REST – projet voitures / crash-tests
 
-PHP 8 + PDO, sans framework. Base : `projet` (tables `marque`, `voiture`, `crashtest`).
+PHP 8 + PDO, sans framework. Base : `projet` (tables `marque`, `voiture`, `crashtest`, `utilisateur`).
 
-## Installation (WAMP)
-1. Importer `projet Ancelinho akbar.sql` dans phpMyAdmin.
-2. Copier le dossier `api/` dans `C:\wamp64\www\`.
+## Installation (XAMPP)
+1. Dans phpMyAdmin, créer la base `projet`, puis importer `database/projet.sql` et ensuite `database/utilisateur.sql`.
+2. Copier le dossier `api/` dans `C:\xampp\htdocs\`.
 3. Adapter `config.php` si besoin (utilisateur / mot de passe MySQL).
-4. Tester : http://localhost/api/index.php/voitures
-   (ou http://localhost/api/voitures si `rewrite_module` est activé dans Apache).
+4. Tester : http://localhost/api/voitures (ou http://localhost/api/index.php/voitures si mod_rewrite est désactivé).
 
 ## Site web (dossier `site/`)
-Copier aussi `site/` dans `C:\wamp64\www\` (à côté de `api/`), puis ouvrir http://localhost/site/.
-Le site appelle `../api/index.php` : changer la constante `API` en haut de `site/app.js` si l'API est ailleurs.
+Copier aussi `site/` dans `C:\xampp\htdocs\` (à côté de `api/`), puis ouvrir http://localhost/site/.
+La connexion utilise un cookie de session : ouvrir le site via `http://localhost/site/` (pas en double-cliquant sur le fichier).
 
-## Routes
+## Authentification
+Les lectures (GET) sont publiques. **POST, PUT et DELETE sur marques / voitures / crashtests nécessitent d'être connecté** (sinon 401).
+La session est gérée par PHP (cookie `PHPSESSID`, HttpOnly, SameSite=Lax). Les mots de passe sont hachés avec `password_hash()` (bcrypt).
+
+| Méthode | Route | Description |
+|---|---|---|
+| POST | /auth/inscription | `{"pseudo": "jean", "email": "jean@exemple.fr", "mot_de_passe": "8 caractères min"}` → crée le compte et connecte (201) |
+| POST | /auth/connexion | `{"identifiant": "pseudo ou e-mail", "mot_de_passe": "..."}` → connecte (401 si incorrect) |
+| POST | /auth/deconnexion | Déconnecte (204) |
+| GET | /auth/moi | `{"utilisateur": {...}}` si connecté, `{"utilisateur": null}` sinon |
+| PUT | /auth/moi | `{"id_voiture": 12}` enregistre « ma voiture » (`null` pour la retirer) |
+
+## Routes des données
 | Méthode | Route | Description |
 |---|---|---|
 | GET | /marques | Liste des marques |
@@ -28,10 +39,12 @@ Le site appelle `../api/index.php` : changer la constante `API` en haut de `site
 | POST | /crashtests | Créer `{"choc_frontal":"5","choc_lateral":"5","choc_arriere":"4","id_voiture":12}` |
 | GET / PUT / DELETE | /crashtests/{id} | Lire / modifier / supprimer |
 
-Codes : 200, 201 (créé), 204 (supprimé), 400, 404, 405, 409, 422 (validation), 500.
+Codes : 200, 201 (créé), 204 (supprimé), 400, 401 (non connecté / identifiants faux), 404, 405, 409 (conflit), 422 (validation), 500.
 
 ## Exemples (PowerShell)
 ```powershell
-Invoke-RestMethod http://localhost/api/index.php/voitures?marque=Peugeot
-Invoke-RestMethod -Method Post -Uri http://localhost/api/index.php/marques -ContentType 'application/json' -Body '{"nom_marque":"Renault"}'
+Invoke-RestMethod http://localhost/api/voitures?marque=Peugeot
+$s = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+Invoke-RestMethod -Method Post -Uri http://localhost/api/auth/connexion -WebSession $s -ContentType 'application/json' -Body '{"identifiant":"jean","mot_de_passe":"..."}'
+Invoke-RestMethod -Method Post -Uri http://localhost/api/marques -WebSession $s -ContentType 'application/json' -Body '{"nom_marque":"Renault"}'
 ```

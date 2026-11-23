@@ -28,6 +28,18 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 // Le client a le droit d'envoyer un en-tête Content-Type (pour le JSON)
 header('Access-Control-Allow-Headers: Content-Type');
 
+// ---------------------------------------------------------------------------
+// Session PHP : un cookie identifie le navigateur, et $_SESSION['user_id']
+// mémorise côté serveur l'utilisateur connecté.
+// ---------------------------------------------------------------------------
+session_set_cookie_params([
+    'lifetime' => 0,       // Cookie supprimé à la fermeture du navigateur
+    'path'     => '/',     // Valable pour /api et /site
+    'httponly' => true,    // Illisible depuis JavaScript (protège contre le vol de session)
+    'samesite' => 'Lax',   // Non envoyé par les formulaires d'autres sites (protection CSRF)
+]);
+session_start();
+
 // Méthode HTTP de la requête (GET, POST, PUT, DELETE…)
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -136,6 +148,53 @@ function exists(string $table, string $pk, int $id): bool
     $stmt = db()->prepare("SELECT 1 FROM `$table` WHERE `$pk` = ?");
     $stmt->execute([$id]);
     return (bool) $stmt->fetchColumn();
+}
+
+// ---------------------------------------------------------------------------
+// Authentification
+// ---------------------------------------------------------------------------
+
+/** Renvoie l'id de l'utilisateur connecté, ou null si personne n'est connecté. */
+function currentUserId(): ?int
+{
+    return isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
+}
+
+/** Arrête la requête avec une erreur 401 si personne n'est connecté ; sinon renvoie l'id de l'utilisateur. */
+function requireLogin(): int
+{
+    $id = currentUserId();
+    if ($id === null) {
+        error('Connexion requise', 401);
+    }
+    return $id;
+}
+
+/** Connecte un utilisateur : nouvel identifiant de session (contre le vol de session) + mémorisation de son id. */
+function loginUser(int $id): void
+{
+    session_regenerate_id(true);
+    $_SESSION['user_id'] = $id;
+}
+
+/**
+ * Renvoie le profil public d'un utilisateur (sans le mot de passe), avec sa voiture
+ * complète si elle est enregistrée. Renvoie null si l'utilisateur n'existe plus.
+ */
+function findUtilisateur(int $id): ?array
+{
+    $stmt = db()->prepare('SELECT `#id_utilisateur` AS id, pseudo, email, id_voiture, date_inscription
+        FROM utilisateur WHERE `#id_utilisateur` = ?');
+    $stmt->execute([$id]);
+    $u = $stmt->fetch();
+    if (!$u) return null;
+    return [
+        'id'               => (int) $u['id'],
+        'pseudo'           => $u['pseudo'],
+        'email'            => $u['email'],
+        'date_inscription' => $u['date_inscription'],
+        'voiture'          => $u['id_voiture'] === null ? null : getVoiture((int) $u['id_voiture']),
+    ];
 }
 
 // ---------------------------------------------------------------------------
@@ -289,11 +348,22 @@ $resource = $parts[0] ?? ''; // ex : 'voitures'
 $id = $parts[1] ?? null;     // ex : '3'
 $sub = $parts[2] ?? null;    // ex : 'crashtest'
 
-// L'identifiant doit être composé uniquement de chiffres
-if ($id !== null && !ctype_digit($id)) {
+// Pour /auth/connexion, /auth/moi… le 2e morceau est une action (texte), pas un id
+$action = null;
+if ($resource === 'auth') {
+    $action = $id;
+    $id = null;
+} elseif ($id !== null && !ctype_digit($id)) {
+    // Ailleurs, l'identifiant doit être composé uniquement de chiffres
     error('Identifiant invalide', 400);
 }
 $id = $id === null ? null : (int) $id;
+
+// Les lectures (GET) sont publiques ; ajouter, modifier ou supprimer des données
+// (POST, PUT, DELETE) demande d'être connecté. Les routes /auth gèrent leurs propres règles.
+if ($resource !== 'auth' && in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
+    requireLogin();
+}
 
 // Le try/catch intercepte toute erreur SQL pour renvoyer un message JSON propre (500)
 try {
@@ -310,8 +380,101 @@ try {
                     'GET|POST /voitures (?marque=&annee=&annee_min=&annee_max=&q=)', 'GET|PUT|DELETE /voitures/{id}',
                     'GET /voitures/{id}/crashtest',
                     'GET|POST /crashtests', 'GET|PUT|DELETE /crashtests/{id}',
+                    'POST /auth/inscription', 'POST /auth/connexion', 'POST /auth/deconnexion', 'GET|PUT /auth/moi',
                 ],
+                'note' => 'POST, PUT et DELETE (hors /auth) nécessitent d\'être connecté',
             ]);
+
+        // --------------------------------------------------------------- AUTH
+        case 'auth':
+            // POST /auth/inscription {"pseudo", "email", "mot_de_passe"} -> crée le compte et connecte
+            if ($action === 'inscription' && $method === 'POST') {
+                $d = body();
+                $pseudo = trim((string) ($d['pseudo'] ?? ''));
+                $email  = trim((string) ($d['email'] ?? ''));
+                $mdp    = (string) ($d['mot_de_passe'] ?? '');
+
+                // Pseudo : 3 à 30 caractères, lettres (accents compris), chiffres, _ . -
+                if (!preg_match('/^[\p{L}0-9_.-]{3,30}$/u', $pseudo)) {
+                    error('Pseudo invalide : 3 à 30 caractères (lettres, chiffres, _ . -)', 422);
+                }
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 255) {
+                    error('Adresse e-mail invalide', 422);
+                }
+                if (mb_strlen($mdp) < 8) {
+                    error('Le mot de passe doit contenir au moins 8 caractères', 422);
+                }
+
+                // Pseudo et e-mail doivent être libres (409 = conflit)
+                $stmt = $pdo->prepare('SELECT 1 FROM utilisateur WHERE pseudo = ? OR email = ?');
+                $stmt->execute([$pseudo, $email]);
+                if ($stmt->fetchColumn()) {
+                    error('Ce pseudo ou cette adresse e-mail est déjà utilisé', 409);
+                }
+
+                // password_hash() hache le mot de passe (bcrypt) : il n'est jamais stocké en clair
+                $pdo->prepare('INSERT INTO utilisateur (pseudo, email, mot_de_passe) VALUES (?, ?, ?)')
+                    ->execute([$pseudo, $email, password_hash($mdp, PASSWORD_DEFAULT)]);
+                $newId = (int) $pdo->lastInsertId();
+                loginUser($newId); // Connecté directement après l'inscription
+                respond(findUtilisateur($newId), 201);
+            }
+
+            // POST /auth/connexion {"identifiant": pseudo ou e-mail, "mot_de_passe"}
+            if ($action === 'connexion' && $method === 'POST') {
+                $d = body();
+                $identifiant = trim((string) ($d['identifiant'] ?? ''));
+                $mdp         = (string) ($d['mot_de_passe'] ?? '');
+
+                $stmt = $pdo->prepare('SELECT `#id_utilisateur` AS id, mot_de_passe FROM utilisateur WHERE email = ? OR pseudo = ?');
+                $stmt->execute([$identifiant, $identifiant]);
+                $u = $stmt->fetch();
+
+                // password_verify() compare le mot de passe saisi avec le hachage stocké.
+                // Même message d'erreur dans les deux cas : on ne révèle pas si le compte existe.
+                if (!$u || !password_verify($mdp, $u['mot_de_passe'])) {
+                    error('Identifiant ou mot de passe incorrect', 401);
+                }
+                loginUser((int) $u['id']);
+                respond(findUtilisateur((int) $u['id']));
+            }
+
+            // POST /auth/deconnexion -> vide et détruit la session
+            if ($action === 'deconnexion' && $method === 'POST') {
+                $_SESSION = [];
+                session_destroy();
+                respond(null, 204);
+            }
+
+            if ($action === 'moi') {
+                // GET /auth/moi -> {"utilisateur": {...}} si connecté, {"utilisateur": null} sinon
+                if ($method === 'GET') {
+                    $uid = currentUserId();
+                    $user = $uid === null ? null : findUtilisateur($uid);
+                    if ($uid !== null && $user === null) {
+                        $_SESSION = []; // Compte supprimé entre-temps : on oublie la session
+                    }
+                    respond(['utilisateur' => $user]);
+                }
+                // PUT /auth/moi {"id_voiture": 12} -> enregistre « ma voiture » ({"id_voiture": null} pour la retirer)
+                if ($method === 'PUT') {
+                    $uid = requireLogin();
+                    $d = body();
+                    if (!array_key_exists('id_voiture', $d)) error('Champ requis manquant : id_voiture', 422);
+                    $vid = $d['id_voiture'];
+                    if ($vid !== null) {
+                        if (filter_var($vid, FILTER_VALIDATE_INT) === false) error('Le champ id_voiture doit être un entier', 422);
+                        $vid = (int) $vid;
+                        if (!exists('voiture', '#id_voiture', $vid)) error('Voiture inexistante', 422);
+                    }
+                    $pdo->prepare('UPDATE utilisateur SET id_voiture = ? WHERE `#id_utilisateur` = ?')->execute([$vid, $uid]);
+                    respond(findUtilisateur($uid));
+                }
+            }
+            if (!in_array($action, ['inscription', 'connexion', 'deconnexion', 'moi'], true)) {
+                error('Route introuvable', 404);
+            }
+            break; // Bonne route mais mauvaise méthode -> 405
 
         // ------------------------------------------------------------ MARQUES
         case 'marques':

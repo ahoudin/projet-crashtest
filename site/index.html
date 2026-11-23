@@ -52,8 +52,11 @@
     <input type="search" id="searchInput" placeholder="Rechercher un modèle…" autocomplete="off">
     <button type="submit" aria-label="Rechercher">🔍</button>
   </form>
-  <!-- Lien vers le sélecteur « Trouver ma voiture » plus bas dans la page -->
-  <a href="#finder" class="btn-orange top-cta">Trouver ma voiture</a>
+  <!-- Zone compte : boutons Connexion / S'inscrire, ou pseudo + Déconnexion (rempli par app.js) -->
+  <div class="auth-area" id="authArea">
+    <button class="btn-dark" data-open-auth="connexion">Connexion</button>
+    <button class="btn-orange" data-open-auth="inscription">S'inscrire</button>
+  </div>
 </header>
 
 <!-- ===================== Onglets des marques ===================== -->
@@ -64,6 +67,9 @@
 </nav>
 
 <main class="container">
+
+  <!-- ===================== « Ma voiture » (visible une fois connecté, rempli par app.js) ===================== -->
+  <section class="my-car" id="myCar" hidden></section>
 
   <!-- ===================== Sélecteur : marque -> modèle -> fiche ===================== -->
   <section class="finder" id="finder">
@@ -133,8 +139,57 @@
       <div class="score-big" id="mScore"></div> <!-- Note moyenne + étoiles -->
       <div class="bars" id="mBars"></div>       <!-- Barres : choc frontal, latéral, arrière -->
       <p class="verdict" id="mVerdict"></p>     <!-- Phrase de verdict -->
+      <div class="modal-actions" id="mActions"></div> <!-- Bouton « C'est ma voiture » -->
       <h3>Modèles similaires</h3>
       <div class="grid grid-small" id="mSimilar"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Fenêtre Connexion / Inscription ===================== -->
+<div class="modal" id="authModal" hidden>
+  <div class="modal-box auth-box" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <button class="modal-close" id="authClose" aria-label="Fermer">✕</button>
+    <div class="auth-body">
+      <div class="logo"><span>Crash</span><span class="logo-pill">Test</span></div>
+      <h2 id="authTitle">Connexion</h2>
+
+      <!-- Onglets pour passer d'un formulaire à l'autre -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-auth-tab="connexion">Connexion</button>
+        <button class="auth-tab" data-auth-tab="inscription">Inscription</button>
+      </div>
+
+      <!-- Message d'erreur renvoyé par l'API (mauvais mot de passe, pseudo pris…) -->
+      <p class="auth-error" id="authError" hidden></p>
+
+      <!-- Formulaire de connexion -->
+      <form class="auth-form" id="formConnexion">
+        <label>Pseudo ou e-mail
+          <input name="identifiant" required autocomplete="username">
+        </label>
+        <label>Mot de passe
+          <input name="mot_de_passe" type="password" required autocomplete="current-password">
+        </label>
+        <button class="btn-orange" type="submit">Se connecter</button>
+      </form>
+
+      <!-- Formulaire d'inscription -->
+      <form class="auth-form" id="formInscription" hidden>
+        <label>Pseudo
+          <input name="pseudo" required minlength="3" maxlength="30" autocomplete="username">
+        </label>
+        <label>E-mail
+          <input name="email" type="email" required autocomplete="email">
+        </label>
+        <label>Mot de passe <small>(8 caractères minimum)</small>
+          <input name="mot_de_passe" type="password" required minlength="8" autocomplete="new-password">
+        </label>
+        <label>Confirmer le mot de passe
+          <input name="confirmation" type="password" required minlength="8" autocomplete="new-password">
+        </label>
+        <button class="btn-orange" type="submit">Créer mon compte</button>
+      </form>
     </div>
   </div>
 </div>

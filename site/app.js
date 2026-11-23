@@ -28,6 +28,8 @@ const state = {
   anneeMin: null,  // Filtre année minimale (null = pas de filtre)
   anneeMax: null,  // Filtre année maximale
   noteMin: 0,      // Note minimale (0 = toutes)
+  user: null,      // Utilisateur connecté ({id, pseudo, email, voiture}) ou null
+  currentId: null, // Id de la voiture affichée dans la fiche détaillée
 };
 
 // Raccourci : $('#grid') équivaut à document.querySelector('#grid')
@@ -45,6 +47,26 @@ async function api(path) {
   const res = await fetch(API + path);                                    // Requête HTTP GET
   if (!res.ok) throw new Error(`Erreur API ${res.status} sur ${path}`);  // Code HTTP d'erreur
   return res.json();                                                      // Conversion JSON -> objet
+}
+
+/**
+ * Envoie des données à l'API (POST, PUT…) au format JSON et renvoie la réponse.
+ * En cas d'erreur, lance une exception contenant le message renvoyé par l'API.
+ * Le cookie de session est envoyé automatiquement (même site), ce qui identifie l'utilisateur.
+ * @param {string} method Méthode HTTP
+ * @param {string} path   Chemin, ex : '/auth/connexion'
+ * @param {object} [data] Données à envoyer
+ */
+async function apiSend(method, path, data) {
+  const res = await fetch(API + path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: data === undefined ? undefined : JSON.stringify(data),
+  });
+  // 204 = pas de contenu (ex : déconnexion)
+  const json = res.status === 204 ? null : await res.json();
+  if (!res.ok) throw new Error(json?.erreur || `Erreur ${res.status}`);
+  return json;
 }
 
 /**
@@ -249,6 +271,10 @@ function openModal(id) {
     </div>`).join('');
   $('#mVerdict').textContent = verdict(n);
 
+  // Bouton « C'est ma voiture » (dépend de la connexion)
+  state.currentId = v.id;
+  renderModalActions();
+
   // Modèles similaires : on calcule une « distance » pour chaque autre voiture
   // (même marque = plus proche, note proche, année proche) et on garde les 4 plus proches
   const similar = state.voitures
@@ -276,6 +302,7 @@ function openModal(id) {
 /** Ferme la fiche détaillée et retire le #voiture-… de l'adresse. */
 function closeModal() {
   $('#modal').hidden = true;
+  state.currentId = null;
   document.body.style.overflow = '';
   history.replaceState(null, '', location.pathname + location.search);
 }
@@ -304,6 +331,194 @@ function fillFinderModeles() {
     modeles.map((v) => `<option value="${v.id}">${escapeHtml(v.modele)} (${v.annee})</option>`).join('');
   sel.disabled = !id;             // Liste des modèles inactive tant qu'aucune marque n'est choisie
   $('#btnVoir').disabled = true;  // Bouton inactif tant qu'aucun modèle n'est choisi
+}
+
+// =============================================================================
+// Compte utilisateur : connexion, inscription, « ma voiture »
+// =============================================================================
+
+/** Récupère l'utilisateur connecté (s'il y en a un) puis met à jour l'affichage. */
+async function loadUser() {
+  try {
+    state.user = (await api('/auth/moi')).utilisateur;
+  } catch (e) {
+    state.user = null; // API injoignable : on considère que personne n'est connecté
+  }
+  renderUser();
+}
+
+/** Met à jour tout ce qui dépend de la connexion : barre du haut, bloc « Ma voiture », fiche ouverte. */
+function renderUser() {
+  renderAuthArea();
+  renderMyCar();
+  renderModalActions();
+}
+
+/** Barre du haut : boutons Connexion / S'inscrire, ou pseudo + Déconnexion. */
+function renderAuthArea() {
+  const u = state.user;
+  $('#authArea').innerHTML = u
+    ? `<span class="user-chip"><span class="avatar">${escapeHtml(u.pseudo[0])}</span>${escapeHtml(u.pseudo)}</span>
+       <button class="btn-dark" id="btnLogout">Déconnexion</button>`
+    : `<button class="btn-dark" data-open-auth="connexion">Connexion</button>
+       <button class="btn-orange" data-open-auth="inscription">S'inscrire</button>`;
+}
+
+/** Bloc « Ma voiture » en haut de page (seulement si l'utilisateur est connecté). */
+function renderMyCar() {
+  const box = $('#myCar');
+  const u = state.user;
+  box.hidden = !u;
+  if (!u) return;
+
+  // On cherche la voiture dans la liste déjà chargée (pour avoir les mêmes données que la grille)
+  const v = u.voiture && state.voitures.find((x) => x.id === u.voiture.id);
+  box.classList.toggle('empty-car', !v);
+
+  if (!v) {
+    box.innerHTML = `<div class="info">
+        <small>Ma voiture</small>
+        <h2>Bienvenue ${escapeHtml(u.pseudo)} !</h2>
+        Choisis ta voiture ci-dessous puis clique sur « C'est ma voiture » pour la retrouver ici.
+      </div>`;
+    return;
+  }
+
+  const n = note(v);
+  box.innerHTML = `
+    <div class="thumb" style="background:${thumbBg(v)}">${carSvg()}</div>
+    <div class="info">
+      <small>Ma voiture</small>
+      <h2>${escapeHtml(v.marque.nom)} ${escapeHtml(v.modele)} (${v.annee})</h2>
+      ${n === null ? 'Pas encore de crash-test' : `${stars(n)} <b>${fmt(n)}/5</b>`}
+    </div>
+    <div class="actions">
+      <button class="btn-orange" data-open-car="${v.id}">Voir le crash-test</button>
+      <button class="btn-dark" id="btnRemoveCar">Retirer</button>
+    </div>`;
+}
+
+/** Bouton de la fiche détaillée : « C'est ma voiture », « ✔ C'est ta voiture » ou invitation à se connecter. */
+function renderModalActions() {
+  const box = $('#mActions');
+  if (state.currentId === null) return; // Aucune fiche ouverte
+  const u = state.user;
+
+  if (!u) {
+    box.innerHTML = `<button class="btn-dark" data-open-auth="connexion">🔒 Connecte-toi pour enregistrer ta voiture</button>`;
+  } else if (u.voiture && u.voiture.id === state.currentId) {
+    box.innerHTML = `<span class="is-mine">✔ C'est ta voiture</span>
+      <button class="btn-dark" id="btnRemoveCar">Retirer</button>`;
+  } else {
+    box.innerHTML = `<button class="btn-orange" id="btnSetCar">🚗 C'est ma voiture</button>`;
+  }
+}
+
+/**
+ * Enregistre (ou retire avec null) la voiture de l'utilisateur via l'API.
+ * @param {number|null} id Id de la voiture
+ */
+async function setMyCar(id) {
+  try {
+    state.user = await apiSend('PUT', '/auth/moi', { id_voiture: id });
+  } catch (e) {
+    alert(e.message);
+    if (e.message === 'Connexion requise') state.user = null; // Session expirée
+  }
+  renderUser();
+}
+
+/** Ouvre la fenêtre de connexion sur l'onglet demandé ('connexion' ou 'inscription'). */
+function openAuth(tab) {
+  switchAuthTab(tab);
+  $('#authModal').hidden = false;
+  document.body.style.overflow = 'hidden';
+  // Place le curseur dans le premier champ du formulaire affiché
+  document.querySelector(tab === 'inscription' ? '#formInscription input' : '#formConnexion input').focus();
+}
+
+/** Ferme la fenêtre de connexion. */
+function closeAuth() {
+  $('#authModal').hidden = true;
+  // On ne réactive le défilement que si la fiche voiture n'est pas ouverte dessous
+  if ($('#modal').hidden) document.body.style.overflow = '';
+}
+
+/** Affiche le formulaire Connexion ou Inscription et active l'onglet correspondant. */
+function switchAuthTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach((t) => t.classList.toggle('active', t.dataset.authTab === tab));
+  $('#formConnexion').hidden = tab !== 'connexion';
+  $('#formInscription').hidden = tab !== 'inscription';
+  $('#authTitle').textContent = tab === 'connexion' ? 'Connexion' : 'Créer un compte';
+  $('#authError').hidden = true;
+}
+
+/** Affiche un message d'erreur dans la fenêtre de connexion. */
+function showAuthError(message) {
+  $('#authError').textContent = message;
+  $('#authError').hidden = false;
+}
+
+/**
+ * Envoie un formulaire (connexion ou inscription) à l'API.
+ * En cas de succès : l'utilisateur est connecté, la fenêtre se ferme et l'affichage est mis à jour.
+ */
+async function submitAuth(e, path) {
+  e.preventDefault(); // Empêche le rechargement de la page
+  const form = e.target;
+  const data = Object.fromEntries(new FormData(form)); // { nom_du_champ: valeur }
+
+  // Inscription : les deux mots de passe doivent être identiques (vérifié avant l'envoi)
+  if (path === '/auth/inscription') {
+    if (data.mot_de_passe !== data.confirmation) return showAuthError('Les deux mots de passe ne correspondent pas.');
+    delete data.confirmation; // Inutile pour l'API
+  }
+
+  const btn = form.querySelector('button[type=submit]');
+  btn.disabled = true; // Évite les doubles clics pendant l'envoi
+  try {
+    state.user = await apiSend('POST', path, data);
+    form.reset();
+    closeAuth();
+    renderUser();
+  } catch (err) {
+    showAuthError(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/** Déconnexion : la session est détruite côté serveur. */
+async function logout() {
+  try { await apiSend('POST', '/auth/deconnexion'); } catch (e) { /* déjà déconnecté */ }
+  state.user = null;
+  renderUser();
+}
+
+/** Branche les évènements liés au compte. */
+function bindAuthEvents() {
+  // Boutons qui changent selon la connexion : un seul écouteur sur toute la page (délégation)
+  document.addEventListener('click', (e) => {
+    const openBtn = e.target.closest('[data-open-auth]');
+    if (openBtn) openAuth(openBtn.dataset.openAuth);
+    if (e.target.closest('#btnLogout')) logout();
+    if (e.target.closest('#btnSetCar')) setMyCar(state.currentId);
+    if (e.target.closest('#btnRemoveCar')) setMyCar(null);
+    const carBtn = e.target.closest('[data-open-car]');
+    if (carBtn) openModal(Number(carBtn.dataset.openCar));
+  });
+
+  // Onglets Connexion / Inscription
+  document.querySelectorAll('.auth-tab').forEach((t) =>
+    t.addEventListener('click', () => switchAuthTab(t.dataset.authTab)));
+
+  // Envoi des formulaires
+  $('#formConnexion').addEventListener('submit', (e) => submitAuth(e, '/auth/connexion'));
+  $('#formInscription').addEventListener('submit', (e) => submitAuth(e, '/auth/inscription'));
+
+  // Fermeture : bouton ✕ ou clic sur le fond sombre
+  $('#authClose').addEventListener('click', closeAuth);
+  $('#authModal').addEventListener('click', (e) => { if (e.target.id === 'authModal') closeAuth(); });
 }
 
 // =============================================================================
@@ -350,9 +565,12 @@ function bindEvents() {
     if (card) openModal(Number(card.dataset.id));
   });
 
-  // Clavier : Échap ferme la fiche ; Entrée sur une vignette sélectionnée l'ouvre
+  // Clavier : Échap ferme la fenêtre du dessus ; Entrée sur une vignette sélectionnée l'ouvre
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !$('#modal').hidden) closeModal();
+    if (e.key === 'Escape') {
+      if (!$('#authModal').hidden) closeAuth();
+      else if (!$('#modal').hidden) closeModal();
+    }
     if (e.key === 'Enter' && e.target.classList?.contains('card')) openModal(Number(e.target.dataset.id));
   });
 
@@ -393,6 +611,7 @@ function initAgeGate() {
 async function init() {
   initAgeGate();
   bindEvents();
+  bindAuthEvents();
 
   // Chargement des marques et des voitures en parallèle (Promise.all)
   try {
@@ -410,6 +629,7 @@ async function init() {
   fillFinderMarques();
   renderStats();
   render();
+  await loadUser(); // Utilisateur déjà connecté ? (session encore active)
 
   // Si l'adresse contient #voiture-12, on ouvre directement la fiche de cette voiture
   const m = location.hash.match(/^#voiture-(\d+)$/);
