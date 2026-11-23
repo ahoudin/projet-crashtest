@@ -1,0 +1,257 @@
+/* =============================================================================
+   style.css – Apparence du site CrashTest (fond noir, accents orange).
+   ============================================================================= */
+
+/* ---------- Variables de couleurs et de dimensions ----------
+   Définies une seule fois ici, puis réutilisées partout avec var(--nom). */
+:root {
+  --orange: #ff9000;      /* Couleur principale (logo, boutons, accents) */
+  --orange-dark: #e08000; /* Orange au survol des boutons */
+  --bg: #000;             /* Fond de la page */
+  --bg2: #1b1b1b;         /* Fond des blocs (onglets, statistiques, modale) */
+  --bg3: #2a2a2a;         /* Fond des champs et boutons secondaires */
+  --text: #fff;           /* Texte principal */
+  --muted: #a8a8a8;       /* Texte secondaire (gris) */
+  --good: #4caf50;        /* Vert : très bonne note */
+  --mid: #ffb300;         /* Jaune : note moyenne */
+  --bad: #e53935;         /* Rouge : mauvaise note / erreurs */
+  --radius: 4px;          /* Arrondi des coins */
+}
+
+/* ---------- Règles de base ---------- */
+/* La largeur d'un élément inclut ses marges intérieures et sa bordure */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+}
+/* Liens sans soulignement et de la couleur du texte */
+a { color: inherit; text-decoration: none; }
+/* Les boutons et champs utilisent la même police que la page */
+button, input, select { font: inherit; }
+/* Texte orange (ex : le mot « ta » du titre) */
+.orange { color: var(--orange); }
+/* Tout élément avec l'attribut hidden est vraiment caché */
+[hidden] { display: none !important; }
+
+/* ---------- Logo : « Crash » blanc + « Test » dans une pastille orange ---------- */
+.logo { display: inline-flex; align-items: center; font-weight: 700; font-size: 28px; letter-spacing: -.5px; }
+.logo-pill { background: var(--orange); color: #000; border-radius: 6px; padding: 0 6px; margin-left: 3px; }
+.logo.small { font-size: 20px; } /* Version réduite du pied de page */
+
+/* ---------- Barre du haut (reste collée en haut au défilement) ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 24px;
+  padding: 14px 24px; background: var(--bg);
+  position: sticky; top: 0; z-index: 10;
+}
+/* Barre de recherche centrée */
+.search { flex: 1; display: flex; max-width: 640px; margin: 0 auto; }
+.search input {
+  flex: 1; padding: 10px 14px; border: 0; border-radius: var(--radius) 0 0 var(--radius);
+  background: var(--bg3); color: var(--text); outline: none;
+}
+/* Contour orange quand le champ est actif */
+.search input:focus { box-shadow: inset 0 0 0 1px var(--orange); }
+/* Bouton loupe collé à droite du champ */
+.search button {
+  border: 0; padding: 0 16px; background: var(--bg3); color: var(--muted);
+  border-left: 1px solid #444; border-radius: 0 var(--radius) var(--radius) 0; cursor: pointer;
+}
+/* Bouton orange principal (réutilisé partout) */
+.btn-orange {
+  background: var(--orange); color: #000; font-weight: 700; border: 0;
+  padding: 10px 18px; border-radius: var(--radius); cursor: pointer; white-space: nowrap;
+}
+.btn-orange:hover { background: var(--orange-dark); }
+/* Bouton désactivé : semi-transparent */
+.btn-orange:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ---------- Onglets des marques ---------- */
+.tabs {
+  display: flex; gap: 4px; padding: 0 24px; background: var(--bg2);
+  border-bottom: 1px solid #333; overflow-x: auto; /* Défilement horizontal si trop d'onglets */
+}
+.tab {
+  background: none; border: 0; color: var(--text); padding: 14px 18px; cursor: pointer;
+  text-transform: uppercase; font-weight: 700; font-size: 13px; border-bottom: 3px solid transparent;
+}
+.tab:hover { color: var(--orange); }
+/* Onglet sélectionné : texte orange et soulignement orange */
+.tab.active { color: var(--orange); border-bottom-color: var(--orange); }
+
+/* ---------- Conteneur principal (largeur max centrée) ---------- */
+.container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+/* ---------- Sélecteur « Quelle est la note de ta voiture ? » ---------- */
+.finder {
+  background: linear-gradient(135deg, #1b1b1b, #111);
+  border: 1px solid #333; border-left: 4px solid var(--orange); /* Barre orange à gauche */
+  border-radius: var(--radius); padding: 24px; margin-bottom: 24px;
+}
+.finder h1 { margin: 0 0 18px; font-size: 24px; }
+/* Les deux listes et le bouton sur une ligne (passent à la ligne si l'écran est étroit) */
+.finder-row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.finder label { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px; }
+.finder label span { color: var(--muted); font-size: 12px; text-transform: uppercase; font-weight: 700; }
+/* Style commun des listes déroulantes et des champs de filtre */
+select, .filters input {
+  background: var(--bg3); color: var(--text); border: 1px solid #444;
+  border-radius: var(--radius); padding: 10px;
+}
+select:focus, .filters input:focus { outline: none; border-color: var(--orange); }
+
+/* ---------- Statistiques (4 cases en grille) ---------- */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 28px; }
+.stat { background: var(--bg2); border-radius: var(--radius); padding: 14px 16px; }
+.stat b { display: block; font-size: 26px; color: var(--orange); }       /* Le chiffre */
+.stat span { color: var(--muted); font-size: 12px; text-transform: uppercase; } /* Le libellé */
+
+/* ---------- Titre de la liste + boutons de tri ---------- */
+.section-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.section-head h2 { margin: 0; font-size: 20px; }
+.sort { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Boutons de tri arrondis (« pastilles ») */
+.chip {
+  background: var(--bg3); color: var(--text); border: 0; border-radius: 20px;
+  padding: 7px 14px; cursor: pointer; font-size: 13px;
+}
+.chip:hover { background: #3a3a3a; }
+.chip.active { background: var(--orange); color: #000; font-weight: 700; } /* Tri en cours */
+
+/* ---------- Filtres année / note ---------- */
+.filters { display: flex; gap: 16px; flex-wrap: wrap; margin: 16px 0 20px; color: var(--muted); }
+.filters label { display: flex; align-items: center; gap: 8px; }
+.filters input { width: 90px; padding: 7px; }
+.filters select { padding: 7px; }
+
+/* ---------- Grille de vignettes ----------
+   auto-fill + minmax : autant de colonnes que possible, chacune d'au moins 250px */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 24px 16px; }
+/* Version plus petite pour les « modèles similaires » */
+.grid-small { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px 12px; }
+
+.card { cursor: pointer; }
+/* Image de la vignette au format 16/9 */
+.thumb {
+  position: relative; aspect-ratio: 16 / 9; border-radius: var(--radius); overflow: hidden;
+  display: grid; place-items: center; /* Centre la voiture */
+}
+.thumb svg { width: 60%; height: auto; opacity: .9; transition: transform .25s; }
+/* Au survol : la voiture grossit et avance légèrement */
+.card:hover .thumb svg { transform: scale(1.08) translateX(4px); }
+/* Au survol : cadre orange autour de l'image */
+.card:hover .thumb::after {
+  content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--orange); border-radius: var(--radius);
+}
+/* Badges posés sur l'image (par défaut : en bas à droite, la note) */
+.badge {
+  position: absolute; right: 6px; bottom: 6px; background: rgba(0,0,0,.8);
+  padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 700;
+}
+.badge-year { left: 6px; right: auto; background: var(--orange); color: #000; }                    /* En bas à gauche : année */
+.badge-hd { top: 6px; bottom: auto; right: 6px; background: #000; color: var(--orange); font-size: 11px; } /* En haut à droite : 5★ */
+/* Nom de la marque avec coche orange « vérifiée » */
+.channel { color: var(--text); }
+.channel i { font-style: normal; background: var(--orange); color: #000; border-radius: 50%; font-size: 9px; padding: 0 3px; margin-left: 2px; }
+/* Titre et infos sous l'image */
+.card-title { margin: 8px 0 4px; font-weight: 700; font-size: 14px; line-height: 1.3; }
+.card:hover .card-title { color: var(--orange); }
+.card-meta { color: var(--muted); font-size: 12px; display: flex; gap: 10px; align-items: center; }
+/* Pourcentage coloré selon la note : vert / jaune / rouge */
+.card-meta .pct { color: var(--good); font-weight: 700; }
+.card-meta .pct.mid { color: var(--mid); }
+.card-meta .pct.bad { color: var(--bad); }
+
+/* ---------- Messages « aucun résultat » et erreur API ---------- */
+.empty, .error { text-align: center; color: var(--muted); padding: 40px 0; }
+.error { color: var(--bad); }
+
+/* ---------- Fiche détaillée (modale) ---------- */
+/* Fond sombre qui recouvre toute la page */
+.modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 50;
+  display: grid; place-items: center; padding: 20px; overflow-y: auto;
+}
+/* Boîte centrale (défile si son contenu est trop haut) */
+.modal-box {
+  position: relative; background: var(--bg2); border-radius: 6px; width: min(860px, 100%);
+  max-height: calc(100vh - 40px); overflow-y: auto; border-top: 4px solid var(--orange);
+}
+/* Bouton rond ✕ en haut à droite */
+.modal-close {
+  position: absolute; top: 10px; right: 10px; z-index: 2; background: rgba(0,0,0,.6);
+  color: #fff; border: 0; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 16px;
+}
+.modal-close:hover { background: var(--orange); color: #000; }
+/* Grande image de la voiture */
+.modal-hero { aspect-ratio: 21 / 8; display: grid; place-items: center; }
+.modal-hero svg { width: 40%; }
+.modal-body { padding: 20px 24px 28px; }
+.modal-body h2 { margin: 4px 0 16px; font-size: 26px; }
+.modal-body h3 { margin: 28px 0 12px; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+/* Ligne « MARQUE · ANNÉE » en orange */
+.meta { color: var(--orange); font-weight: 700; text-transform: uppercase; font-size: 12px; margin: 0; }
+
+/* Grande note et étoiles */
+.score-big { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.score-big .num { font-size: 48px; font-weight: 700; color: var(--orange); line-height: 1; }
+.score-big .num small { font-size: 20px; color: var(--muted); }
+.stars { font-size: 24px; letter-spacing: 2px; color: #444; } /* Étoiles éteintes en gris */
+.stars .on { color: var(--orange); }                          /* Étoiles allumées en orange */
+
+/* Barres de progression par type de choc : libellé | barre | note */
+.bars { display: grid; gap: 12px; }
+.bar-row { display: grid; grid-template-columns: 120px 1fr 50px; align-items: center; gap: 12px; }
+.bar-row span:first-child { color: var(--muted); }
+.bar { height: 10px; background: var(--bg3); border-radius: 5px; overflow: hidden; }
+/* Remplissage orange : démarre à 0, la largeur est animée par app.js */
+.bar i { display: block; height: 100%; background: var(--orange); border-radius: 5px; width: 0; transition: width .6s ease; }
+.bar-row b { text-align: right; }
+/* Encadré du verdict */
+.verdict { margin-top: 20px; padding: 12px 16px; background: var(--bg3); border-radius: var(--radius); line-height: 1.5; }
+
+/* ---------- Pied de page ---------- */
+.footer { border-top: 1px solid #333; margin-top: 40px; padding: 24px; text-align: center; color: var(--muted); }
+
+/* ---------- Page d'entrée « + de 18 ans » ---------- */
+/* Tant que <body> a la classe « gated », on ne peut pas faire défiler le site */
+body.gated { overflow: hidden; }
+/* Écran noir qui recouvre tout le site, contenu centré */
+.age-gate {
+  position: fixed; inset: 0; z-index: 100; background: #000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 24px 16px; overflow-y: auto; text-align: center;
+}
+/* Quand la classe « gated » est retirée (clic sur Entrer), la page d'entrée disparaît */
+body:not(.gated) .age-gate { display: none; }
+.age-box { max-width: 720px; }
+/* Logo en très grand */
+.age-logo { font-size: 44px; margin-bottom: 36px; }
+.age-logo .logo-pill { padding: 0 10px; border-radius: 8px; }
+.age-gate h1 { font-size: 30px; margin: 0 0 18px; }
+.age-gate p { color: #c6c6c6; line-height: 1.6; font-size: 15px; margin: 0 auto 28px; }
+/* Les deux gros boutons côte à côte */
+.age-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 28px; }
+.age-yes, .age-no { padding: 14px 26px; font-size: 16px; font-weight: 700; border-radius: 4px; cursor: pointer; }
+/* Bouton « Sortir » gris foncé */
+.age-no { background: #2f2f2f; color: #fff; border: 0; }
+.age-no:hover { background: #3d3d3d; }
+/* Petit texte « contrôle parental » */
+.age-small { font-size: 13px !important; color: #8a8a8a !important; }
+.age-small a { color: var(--orange); text-decoration: underline; }
+.age-footer { margin-top: 40px; color: #666; font-size: 12px; }
+
+/* ---------- Adaptation mobile (écrans de moins de 700px) ---------- */
+@media (max-width: 700px) {
+  .topbar { flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
+  .search { order: 3; flex-basis: 100%; }               /* La recherche passe sur sa propre ligne */
+  .top-cta { margin-left: auto; padding: 8px 12px; }
+  .logo { font-size: 22px; }
+  .tabs, .container { padding-left: 16px; padding-right: 16px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); } /* Vignettes plus petites */
+  .bar-row { grid-template-columns: 90px 1fr 40px; }
+}

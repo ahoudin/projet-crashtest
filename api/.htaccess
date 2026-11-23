@@ -1,0 +1,17 @@
+# =============================================================================
+# .htaccess – Réécriture d'URL pour l'API
+# Permet d'écrire http://localhost/api/voitures au lieu de
+# http://localhost/api/index.php/voitures (nécessite le module mod_rewrite d'Apache).
+# =============================================================================
+
+# Active le moteur de réécriture d'URL d'Apache
+RewriteEngine On
+
+# On ne réécrit PAS si l'URL demandée correspond à un vrai fichier existant…
+RewriteCond %{REQUEST_FILENAME} !-f
+# … ni à un vrai dossier existant
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Toute autre URL est envoyée à index.php : /api/voitures/3 -> /api/index.php/voitures/3
+#   QSA = conserve les paramètres ?marque=BMW…   L = dernière règle appliquée
+RewriteRule ^(.*)$ index.php/$1 [QSA,L]

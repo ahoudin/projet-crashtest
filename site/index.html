@@ -1,0 +1,151 @@
+<!doctype html>
+<!--
+  index.html – Structure de la page du site CrashTest.
+  Le contenu dynamique (onglets de marques, vignettes, statistiques, fiche détaillée)
+  est rempli par app.js à partir des données de l'API.
+-->
+<html lang="fr">
+<head>
+  <!-- Encodage des caractères (accents) -->
+  <meta charset="utf-8">
+  <!-- Adapte la largeur de la page à l'écran (indispensable sur mobile) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Titre affiché dans l'onglet du navigateur -->
+  <title>CrashTest – Les performances de ta voiture</title>
+  <!-- Feuille de style du site -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<!-- La classe « gated » affiche la page d'entrée et bloque le reste du site tant qu'on n'a pas cliqué sur « Entrer » -->
+<body class="gated">
+
+<!-- ===================== Page d'entrée : vérification de l'âge ===================== -->
+<div class="age-gate" id="ageGate" role="dialog" aria-modal="true" aria-labelledby="ageTitle">
+  <div class="age-box">
+    <!-- Logo en grand : « Crash » en blanc + « Test » dans une pastille orange -->
+    <div class="logo age-logo"><span>Crash</span><span class="logo-pill">Test</span></div>
+    <h1 id="ageTitle">Ceci est un site pour adultes</h1>
+    <!-- Texte d'avertissement parodique -->
+    <p>
+      Ce site contient du contenu réservé aux adultes : carrosseries froissées, airbags déployés,
+      longerons pliés et mannequins de crash-test filmés dans des positions compromettantes.
+      En entrant, tu confirmes avoir au moins 18 ans (ou le permis de conduire) et accepter de voir
+      des voitures se faire défoncer à 64 km/h.
+    </p>
+    <!-- Les deux choix : entrer sur le site (orange) ou le quitter (gris) -->
+    <div class="age-actions">
+      <button class="btn-orange age-yes" id="ageYes">J'ai 18 ans ou plus — Entrer</button>
+      <button class="age-no" id="ageNo">J'ai moins de 18 ans — Sortir</button>
+    </div>
+    <p class="age-small">
+      Notre page de <a href="#">contrôle parental</a> explique comment bloquer facilement l'accès à ce site.
+    </p>
+  </div>
+  <footer class="age-footer">© CrashTest — Tous droits réservés. Aucun mannequin n'a été blessé (si, en fait, beaucoup).</footer>
+</div>
+
+<!-- ===================== Barre du haut : logo, recherche, bouton ===================== -->
+<header class="topbar">
+  <!-- Logo : un clic ramène à l'accueil (géré dans app.js) -->
+  <a href="#" class="logo" id="logo"><span>Crash</span><span class="logo-pill">Test</span></a>
+  <!-- Barre de recherche : filtre les modèles pendant la saisie -->
+  <form class="search" id="searchForm">
+    <input type="search" id="searchInput" placeholder="Rechercher un modèle…" autocomplete="off">
+    <button type="submit" aria-label="Rechercher">🔍</button>
+  </form>
+  <!-- Lien vers le sélecteur « Trouver ma voiture » plus bas dans la page -->
+  <a href="#finder" class="btn-orange top-cta">Trouver ma voiture</a>
+</header>
+
+<!-- ===================== Onglets des marques ===================== -->
+<nav class="tabs" id="brandTabs">
+  <!-- data-marque="" = toutes les marques -->
+  <button class="tab active" data-marque="">Accueil</button>
+  <!-- Les onglets BMW, Volkswagen, Peugeot… sont ajoutés par app.js -->
+</nav>
+
+<main class="container">
+
+  <!-- ===================== Sélecteur : marque -> modèle -> fiche ===================== -->
+  <section class="finder" id="finder">
+    <h1>Quelle est la note crash-test de <span class="orange">ta</span> voiture ?</h1>
+    <div class="finder-row">
+      <!-- Étape 1 : choix de la marque (liste remplie par app.js) -->
+      <label>
+        <span>1. Marque</span>
+        <select id="selMarque"><option value="">— Choisir une marque —</option></select>
+      </label>
+      <!-- Étape 2 : choix du modèle (inactif tant qu'aucune marque n'est choisie) -->
+      <label>
+        <span>2. Modèle</span>
+        <select id="selModele" disabled><option value="">— Choisir un modèle —</option></select>
+      </label>
+      <!-- Étape 3 : ouvre la fiche détaillée du modèle choisi -->
+      <button class="btn-orange" id="btnVoir" disabled>Voir le crash-test</button>
+    </div>
+  </section>
+
+  <!-- ===================== Statistiques (remplies par app.js) ===================== -->
+  <section class="stats" id="stats"></section>
+
+  <!-- ===================== Titre de la liste + boutons de tri ===================== -->
+  <div class="section-head">
+    <h2 id="listTitle">Tous les modèles</h2>
+    <div class="sort">
+      <!-- data-sort indique le type de tri utilisé par app.js -->
+      <button class="chip active" data-sort="safe">⭐ Les plus sûres</button>
+      <button class="chip" data-sort="recent">🆕 Les plus récentes</button>
+      <button class="chip" data-sort="az">A → Z</button>
+    </div>
+  </div>
+
+  <!-- ===================== Filtres année / note ===================== -->
+  <div class="filters">
+    <label>Année min <input type="number" id="anneeMin" min="1980" max="2030" placeholder="1990"></label>
+    <label>Année max <input type="number" id="anneeMax" min="1980" max="2030" placeholder="2025"></label>
+    <label>Note min
+      <select id="noteMin">
+        <option value="0">Toutes</option>
+        <option value="3">3★ et +</option>
+        <option value="4">4★ et +</option>
+        <option value="5">5★ uniquement</option>
+      </select>
+    </label>
+  </div>
+
+  <!-- ===================== Grille des vignettes (remplie par app.js) ===================== -->
+  <div class="grid" id="grid"></div>
+  <!-- Message affiché si aucun modèle ne correspond aux filtres -->
+  <p class="empty" id="empty" hidden>Aucun modèle ne correspond à ta recherche.</p>
+  <!-- Message affiché si l'API ne répond pas -->
+  <p class="error" id="error" hidden></p>
+</main>
+
+<!-- ===================== Fiche détaillée d'une voiture (fenêtre modale) ===================== -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <!-- Bouton de fermeture -->
+    <button class="modal-close" id="modalClose" aria-label="Fermer">✕</button>
+    <!-- Grande image de la voiture -->
+    <div class="modal-hero" id="mHero"></div>
+    <div class="modal-body">
+      <p class="meta" id="mMeta"></p>          <!-- Marque · année -->
+      <h2 id="mTitle"></h2>                     <!-- Nom complet du modèle -->
+      <div class="score-big" id="mScore"></div> <!-- Note moyenne + étoiles -->
+      <div class="bars" id="mBars"></div>       <!-- Barres : choc frontal, latéral, arrière -->
+      <p class="verdict" id="mVerdict"></p>     <!-- Phrase de verdict -->
+      <h3>Modèles similaires</h3>
+      <div class="grid grid-small" id="mSimilar"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Pied de page ===================== -->
+<footer class="footer">
+  <div class="logo small"><span>Crash</span><span class="logo-pill">Test</span></div>
+  <p>Notes crash-test sur 5 (choc frontal, latéral, arrière). Projet pédagogique.</p>
+</footer>
+
+<!-- Script du site, chargé en dernier pour que tous les éléments HTML existent déjà -->
+<script src="app.js"></script>
+</body>
+</html>
