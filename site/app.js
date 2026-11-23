@@ -337,10 +337,90 @@ function fillFinderModeles() {
 // Compte utilisateur : connexion, inscription, « ma voiture »
 // =============================================================================
 
+// -----------------------------------------------------------------------------
+// Stockage local (localStorage)
+// Visible dans les outils de développement : onglet Application > Local Storage.
+// On y garde un résumé de l'utilisateur connecté (JAMAIS le mot de passe).
+// La vraie connexion reste la session PHP : le localStorage sert à retrouver
+// et afficher les informations du compte, même avant la réponse de l'API.
+// -----------------------------------------------------------------------------
+
+// Nom de la clé utilisée dans le localStorage
+const LS_KEY = 'crashtest_utilisateur';
+
+/**
+ * Enregistre les informations de l'utilisateur dans le localStorage.
+ * @param {object} user Utilisateur renvoyé par l'API
+ */
+function saveUserLocal(user) {
+  // Étape 1 : on choisit les informations à conserver (pas de mot de passe !)
+  const infos = {
+    id: user.id,
+    pseudo: user.pseudo,
+    email: user.email,
+    date_inscription: user.date_inscription,
+    voiture: user.voiture
+      ? { id: user.voiture.id, nom: `${user.voiture.marque.nom} ${user.voiture.modele}`, annee: user.voiture.annee }
+      : null,
+    mis_a_jour_le: new Date().toISOString(), // Date du dernier enregistrement
+  };
+  console.info('[localStorage] Étape 1 : informations à enregistrer', infos);
+
+  // Étape 2 : le localStorage ne stocke que du texte -> conversion de l'objet en JSON
+  const texte = JSON.stringify(infos);
+  console.info('[localStorage] Étape 2 : conversion en texte JSON', texte);
+
+  // Étape 3 : enregistrement sous la clé « crashtest_utilisateur »
+  try {
+    localStorage.setItem(LS_KEY, texte);
+    console.info(`[localStorage] Étape 3 : enregistré sous la clé « ${LS_KEY} »`);
+  } catch (e) {
+    // Navigation privée ou stockage bloqué : le site fonctionne quand même
+    console.warn('[localStorage] Enregistrement impossible', e);
+  }
+}
+
+/** Relit l'utilisateur stocké dans le localStorage (ou null s'il n'y en a pas). */
+function readUserLocal() {
+  try {
+    // Étape 1 : lecture du texte stocké sous la clé
+    const texte = localStorage.getItem(LS_KEY);
+    if (texte === null) return null;
+    // Étape 2 : conversion du texte JSON en objet JavaScript
+    const infos = JSON.parse(texte);
+    console.info('[localStorage] Utilisateur relu depuis le stockage local', infos);
+    return infos;
+  } catch (e) {
+    return null; // Stockage bloqué ou contenu illisible
+  }
+}
+
+/** Supprime l'utilisateur du localStorage (déconnexion, session expirée). */
+function clearUserLocal() {
+  try {
+    localStorage.removeItem(LS_KEY);
+    console.info(`[localStorage] Clé « ${LS_KEY} » supprimée`);
+  } catch (e) { /* stockage bloqué : rien à supprimer */ }
+}
+
+/** Met le localStorage en accord avec l'utilisateur actuel (enregistre ou supprime). */
+function syncUserLocal() {
+  if (state.user) saveUserLocal(state.user);
+  else clearUserLocal();
+}
+
 /** Récupère l'utilisateur connecté (s'il y en a un) puis met à jour l'affichage. */
 async function loadUser() {
+  // Affichage immédiat du pseudo enregistré localement, en attendant la réponse de l'API
+  const local = readUserLocal();
+  if (local) {
+    $('#authArea').innerHTML = `<span class="user-chip"><span class="avatar">${escapeHtml(local.pseudo[0])}</span>${escapeHtml(local.pseudo)}</span>`;
+  }
+
   try {
     state.user = (await api('/auth/moi')).utilisateur;
+    // La session PHP fait foi : on met le localStorage à jour (ou on le vide si la session a expiré)
+    syncUserLocal();
   } catch (e) {
     state.user = null; // API injoignable : on considère que personne n'est connecté
   }
@@ -425,6 +505,7 @@ async function setMyCar(id) {
     alert(e.message);
     if (e.message === 'Connexion requise') state.user = null; // Session expirée
   }
+  syncUserLocal(); // Nouvelle voiture enregistrée aussi dans le localStorage
   renderUser();
 }
 
@@ -478,6 +559,7 @@ async function submitAuth(e, path) {
   btn.disabled = true; // Évite les doubles clics pendant l'envoi
   try {
     state.user = await apiSend('POST', path, data);
+    saveUserLocal(state.user); // Connexion réussie : informations stockées dans le localStorage
     form.reset();
     closeAuth();
     renderUser();
@@ -492,6 +574,7 @@ async function submitAuth(e, path) {
 async function logout() {
   try { await apiSend('POST', '/auth/deconnexion'); } catch (e) { /* déjà déconnecté */ }
   state.user = null;
+  clearUserLocal(); // Déconnexion : on efface les informations du localStorage
   renderUser();
 }
 
@@ -512,9 +595,20 @@ function bindAuthEvents() {
   document.querySelectorAll('.auth-tab').forEach((t) =>
     t.addEventListener('click', () => switchAuthTab(t.dataset.authTab)));
 
-  // Envoi des formulaires
-  $('#formConnexion').addEventListener('submit', (e) => submitAuth(e, '/auth/connexion'));
-  $('#formInscription').addEventListener('submit', (e) => submitAuth(e, '/auth/inscription'));
+  // Envoi des formulaires : un seul écouteur « submit » posé sur la fenêtre #authModal
+  // (l'évènement remonte depuis le formulaire). Il apparaît dans les outils de développement :
+  // Elements > #authModal > Event Listeners > submit > authModalSubmit.
+  $('#authModal').addEventListener('submit', authModalSubmit);
+}
+
+/**
+ * Écouteur « submit » de la fenêtre de connexion.
+ * Étapes : 1) envoi du formulaire à l'API  2) réponse OK = utilisateur connecté
+ *          3) enregistrement de ses informations dans le localStorage (voir saveUserLocal)
+ */
+function authModalSubmit(e) {
+  if (e.target.id === 'formConnexion') submitAuth(e, '/auth/connexion');
+  if (e.target.id === 'formInscription') submitAuth(e, '/auth/inscription');
 
   // Fermeture : bouton ✕ ou clic sur le fond sombre
   $('#authClose').addEventListener('click', closeAuth);
